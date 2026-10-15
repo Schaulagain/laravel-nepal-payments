@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\Payments\GatewayException;
 use App\Exceptions\Payments\InvalidSignatureException;
 use App\Models\Payment;
 use App\Payments\GatewayManager;
@@ -27,7 +28,7 @@ class PaymentController extends Controller
             Log::warning('Rejected payment callback', ['payment' => $payment->uuid, 'reason' => $exception->getMessage()]);
 
             return to_route('payments.show', $payment)->with('error', 'We could not verify this payment response.');
-        } catch (ConnectionException|RequestException) {
+        } catch (ConnectionException|RequestException|GatewayException) {
             return to_route('payments.show', $payment)->with('error', 'We could not reach the gateway yet. Your payment will be confirmed automatically.');
         }
 

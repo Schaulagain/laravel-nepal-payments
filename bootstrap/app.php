@@ -12,7 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Gateways post back to these from their own servers or pages.
+        $middleware->preventRequestForgery(except: [
+            'payments/*/callback',
+            'payments/hbl/notify',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
