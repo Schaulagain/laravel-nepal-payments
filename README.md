@@ -2,11 +2,13 @@
 
 [![Tests](https://github.com/Schaulagain/laravel-nepal-payments/actions/workflows/tests.yml/badge.svg)](https://github.com/Schaulagain/laravel-nepal-payments/actions/workflows/tests.yml)
 
-A Laravel 13 demo store that takes payments through **eSewa** and **Khalti**, built around the part of payment systems that's easy to get wrong: **never trusting what comes back from the browser**.
+A small Laravel 13 store that takes payments through eSewa and Khalti.
 
-It recreates, from scratch and with public sandbox credentials, the kind of payment service I built and owned at work for a cloud self-service portal: one payment layer that every product purchase goes through, with transaction records, gateway callbacks, verification and invoices.
+At my last job I looked after the payment service for a cloud portal. Every purchase went through it: VPS, domains, email and so on. This repo rebuilds the core of that idea from scratch, using the gateways' public sandboxes, so I have something I can actually show.
 
-## The payment flow
+The main rule the code follows: the browser redirect back from the gateway is never enough to mark a payment as paid. The app checks with the gateway first.
+
+## Flow
 
 ```mermaid
 sequenceDiagram
@@ -25,36 +27,43 @@ sequenceDiagram
     Note over A,G: Every 5 min, payments:reconcile asks the gateway<br/>about payments still pending (customer never came back)
 ```
 
-## What it handles
+## How payments are checked
 
-- **Signature verification (eSewa).** Callback data is base64 JSON signed with HMAC-SHA256. The app re-computes the signature over the fields eSewa lists, compares it in constant time, and rejects callbacks that don't sign the status and amount. Tested against eSewa's own documentation example, and confirmed against the live sandbox, which accepts the app's signatures and rejects tampered ones (`ES104 Invalid payload signature`).
-- **Server-side confirmation (Khalti).** Khalti's callback isn't signed, so the app only trusts its lookup API, as Khalti recommends.
-- **Callbacks tied to their payment.** A validly signed callback for payment A can't be replayed against payment B.
-- **Amount checks.** If the gateway reports a different amount from the order, the payment is failed, not completed.
-- **Idempotency.** The payment row is locked during processing, final states never change, and a unique index makes a second invoice for the same payment impossible, so refreshes, retries and reconciliation can safely overlap.
-- **Reconciliation.** `php artisan payments:reconcile` (scheduled every five minutes) asks each gateway about payments still pending, covering customers who close the tab before returning. Gateway outages leave payments pending for the next run.
-- **Money as integers.** Amounts are stored in paisa and converted only at the gateway boundary.
+eSewa sends the result back as base64 JSON with an HMAC-SHA256 signature. The app signs the same fields again with the secret key and compares the two with `hash_equals`. If the callback doesn't include the status and amount in its signed fields, it's rejected. I checked the signing code against the example in eSewa's docs and against the live sandbox. The sandbox accepts the app's signatures and rejects a tampered one with `ES104 Invalid payload signature`.
 
-### A gateway quirk worth knowing
+Khalti's callback isn't signed, so the app ignores everything in it except the `pidx` and asks Khalti's lookup API what really happened. Khalti's docs recommend doing this.
 
-eSewa signs `total_amount` as it appears in its JSON, e.g. `1000.0`. PHP's `json_decode()` turns that into a float that prints as `1000`, so a naive check rejects every real payment with a round amount. The gateway re-encodes floats with `JSON_PRESERVE_ZERO_FRACTION` before verifying, and a test pins this against eSewa's published example.
+Some other checks:
 
-## Code tour
+- A callback is tied to one payment. A valid eSewa response for payment A can't be replayed against payment B.
+- If the gateway reports a different amount from the order, the payment is marked failed.
+- The payment row is locked (`lockForUpdate`) while a result is applied, a finished payment never changes again, and `invoices.payment_id` is unique. So a page refresh, a retry and the reconcile job can all hit the same payment without creating two invoices.
+- Amounts are stored as integers in paisa and only converted to rupees when talking to a gateway.
 
-| Path | What's there |
+If a customer pays and then closes the tab, the app never gets the redirect. `php artisan payments:reconcile` runs every five minutes, picks up payments that have been pending for more than 15 minutes, and asks the gateway for their status. If the gateway is down, the payment just stays pending until the next run.
+
+### The `1000.0` problem
+
+eSewa signs `total_amount` exactly as it appears in its JSON, for example `1000.0`. After `json_decode()`, PHP turns that into a float, and the float prints as `1000`. The signature then doesn't match, so every round-number payment would fail verification. The fix is to re-encode the value with `JSON_PRESERVE_ZERO_FRACTION` before signing. There's a test for this using the example from eSewa's docs.
+
+A few third-party eSewa packages quote a signature for that same example that doesn't match eSewa's own docs. Trust the official one.
+
+## Where things are
+
+| Path | |
 | --- | --- |
-| `app/Payments/Contracts/PaymentGateway.php` | The interface every gateway implements: `checkout`, `handleCallback`, `fetchStatus` |
-| `app/Payments/Gateways/EsewaGateway.php` | eSewa ePay v2: signing, callback verification, status API |
-| `app/Payments/Gateways/KhaltiGateway.php` | Khalti KPG-2: initiate, lookup, status mapping |
-| `app/Payments/PaymentProcessor.php` | Applies a verified result exactly once and issues the invoice |
-| `app/Console/Commands/ReconcilePayments.php` | Re-checks stale pending payments |
-| `tests/Feature/` | 20 tests, with HTTP calls to both gateways faked |
+| `app/Payments/Contracts/PaymentGateway.php` | Interface for gateways: `checkout`, `handleCallback`, `fetchStatus` |
+| `app/Payments/Gateways/EsewaGateway.php` | eSewa ePay v2: signing, callback check, status API |
+| `app/Payments/Gateways/KhaltiGateway.php` | Khalti: initiate, lookup, status mapping |
+| `app/Payments/PaymentProcessor.php` | Applies a checked result once and creates the invoice |
+| `app/Console/Commands/ReconcilePayments.php` | Re-checks old pending payments |
+| `tests/Feature/` | 20 tests. Gateway HTTP calls are faked |
 
-Adding another gateway (for example a bank gateway) means one new class implementing `PaymentGateway`, registered in `GatewayManager`.
+To add another gateway, write a class that implements `PaymentGateway` and register it in `GatewayManager`.
 
 ## Running it
 
-Requires PHP 8.4+ and Composer.
+You need PHP 8.4 or newer and Composer.
 
 ```sh
 composer install
@@ -63,17 +72,19 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-- **eSewa** works out of the box with its public sandbox credentials. Test accounts are listed in the [eSewa developer docs](https://developer.esewa.com.np/).
-- **Khalti** needs a free sandbox merchant account at [test-admin.khalti.com](https://test-admin.khalti.com); put its secret key in `KHALTI_SECRET_KEY`. Test accounts are in the [Khalti docs](https://docs.khalti.com/khalti-epayment/).
-- Gateways redirect back to `APP_URL`. When testing on your own machine, set `APP_URL=http://localhost:8000`.
+eSewa works straight away with its public sandbox keys. The test login details are in the [eSewa developer docs](https://developer.esewa.com.np/).
+
+Khalti needs a free sandbox merchant account from [test-admin.khalti.com](https://test-admin.khalti.com). Put the secret key in `KHALTI_SECRET_KEY`. Test accounts are listed in the [Khalti docs](https://docs.khalti.com/khalti-epayment/).
+
+The gateways redirect back to `APP_URL`, so set `APP_URL=http://localhost:8000` when running locally.
 
 ```sh
-php artisan test               # run the test suite
-php artisan payments:reconcile # check pending payments now
+php artisan test
+php artisan payments:reconcile
 ```
 
-## Not included (yet)
+## Not done yet
 
-- Authentication and an admin dashboard for payments
-- Refund requests through the gateway APIs
-- Webhooks, for gateways that offer them
+- Login and an admin page for payments
+- Refunds through the gateway APIs
+- Webhooks
