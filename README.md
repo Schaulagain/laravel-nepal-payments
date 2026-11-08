@@ -8,7 +8,7 @@ At my last job I looked after the payment service for a cloud portal. Every purc
 
 ![The store's checkout page](docs/screenshots/checkout.png)
 
-The main rule the code follows: the browser redirect back from the gateway is never enough to mark a payment as paid. The app checks with the gateway first.
+Before anything gets marked as paid, the app checks with the gateway itself.
 
 ## Flow
 
@@ -37,7 +37,7 @@ Khalti's callback isn't signed, so the app ignores everything in it except the `
 
 HBL is the most involved. Its card gateway runs on 2C2P's PACO platform, and every message in both directions is a JOSE token: the JSON is signed with PS256 and the result is encrypted with RSA-OAEP and A128CBC-HS256. The app signs with its own private key and encrypts with the bank's public key, and does the reverse for responses. It also checks that a response was issued by `PacoIssuer` for our API key and hasn't expired. The customer is sent to HBL's hosted card page, so card numbers never touch this app.
 
-When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app doesn't take either at its word. It asks HBL's `transactionList` inquiry API for the order, which gives both the status and the amount.
+When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app asks HBL's `transactionList` inquiry API for the order, which gives both the status and the amount.
 
 Some other checks:
 
@@ -52,7 +52,7 @@ If a customer pays and then closes the tab, the app never gets the redirect. `ph
 
 eSewa signs `total_amount` exactly as it appears in its JSON, for example `1000.0`. After `json_decode()`, PHP turns that into a float, and the float prints as `1000`. The signature then doesn't match, so every round-number payment would fail verification. The fix is to re-encode the value with `JSON_PRESERVE_ZERO_FRACTION` before signing. There's a test for this using the example from eSewa's docs.
 
-A few third-party eSewa packages quote a signature for that same example that doesn't match eSewa's own docs. Trust the official one.
+A few third-party eSewa packages quote a signature for that same example that differs from eSewa's own docs. I went with the official one.
 
 ### JOSE without a JOSE library
 
