@@ -3,8 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PaymentStatus;
-use App\Exceptions\Payments\GatewayException;
-use App\Exceptions\Payments\InvalidSignatureException;
+use App\Exceptions\Payments\PaymentException;
 use App\Models\Product;
 use App\Payments\GatewayManager;
 use Illuminate\Http\Client\ConnectionException;
@@ -52,7 +51,7 @@ class CheckoutController extends Controller
 
         try {
             $redirect = $this->gateways->gateway($payment->gateway)->checkout($payment);
-        } catch (ConnectionException|RequestException|GatewayException|InvalidSignatureException $exception) {
+        } catch (ConnectionException|RequestException|PaymentException $exception) {
             Log::error('Payment checkout failed', ['payment' => $payment->uuid, 'error' => $exception->getMessage()]);
             $payment->update(['status' => PaymentStatus::Failed, 'failure_reason' => 'checkout_error']);
 

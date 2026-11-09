@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Payments\CheckoutRedirect;
 use App\Payments\Contracts\PaymentGateway;
 use App\Payments\GatewayResult;
+use App\Payments\Gateways\Concerns\PicksEnvironmentUrls;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -21,6 +22,8 @@ use Illuminate\Support\Facades\Http;
  */
 class KhaltiGateway implements PaymentGateway
 {
+    use PicksEnvironmentUrls;
+
     /**
      * @param  array{sandbox: bool, secret_key: ?string, urls: array{sandbox: string, production: string}}  $config
      */
@@ -56,10 +59,10 @@ class KhaltiGateway implements PaymentGateway
             throw new InvalidSignatureException('Khalti callback does not belong to this payment.');
         }
 
-        return $this->fetchStatus($payment);
+        return $this->lookup($payment);
     }
 
-    public function fetchStatus(Payment $payment): GatewayResult
+    public function lookup(Payment $payment): GatewayResult
     {
         if ($payment->external_id === null) {
             return new GatewayResult(PaymentStatus::Failed, failureReason: 'khalti_not_initiated');
@@ -93,7 +96,7 @@ class KhaltiGateway implements PaymentGateway
 
     private function client(): PendingRequest
     {
-        return Http::baseUrl($this->config['urls'][$this->config['sandbox'] ? 'sandbox' : 'production'])
+        return Http::baseUrl($this->urls())
             ->withHeader('Authorization', 'Key '.$this->config['secret_key'])
             ->acceptJson()
             ->asJson();

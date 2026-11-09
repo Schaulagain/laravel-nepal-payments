@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Payments\CheckoutRedirect;
 use App\Payments\Contracts\PaymentGateway;
 use App\Payments\GatewayResult;
+use App\Payments\Gateways\Concerns\PicksEnvironmentUrls;
 use App\Payments\Jose\InvalidTokenException;
 use App\Payments\Jose\JoseEnvelope;
 use Illuminate\Http\Client\RequestException;
@@ -31,7 +32,18 @@ use Throwable;
  */
 class HblGateway implements PaymentGateway
 {
+    use PicksEnvironmentUrls;
+
     private const SUCCESS = 'PC-B050000';
+
+    /** Config keys HBL needs before it can take payments. */
+    public const REQUIRED_CONFIG = [
+        'office_id', 'api_key', 'merchant_signing_private_key', 'merchant_decryption_private_key',
+        'paco_encryption_public_key', 'paco_signing_public_key',
+    ];
+
+    /** PACO status codes that end a payment without money taken, and why. */
+    private const FAILURES = ['F' => 'rejected', 'C' => 'cancelled', 'E' => 'expired', 'V' => 'voided'];
 
     /**
      * @param  array<string, mixed>  $config
@@ -94,10 +106,10 @@ class HblGateway implements PaymentGateway
      */
     public function handleCallback(Payment $payment, Request $request): GatewayResult
     {
-        return $this->fetchStatus($payment);
+        return $this->lookup($payment);
     }
 
-    public function fetchStatus(Payment $payment): GatewayResult
+    public function lookup(Payment $payment): GatewayResult
     {
         if ($payment->external_id === null) {
             return new GatewayResult(PaymentStatus::Failed, failureReason: 'hbl_not_initiated');
@@ -131,12 +143,7 @@ class HblGateway implements PaymentGateway
             status: $this->mapStatus($status),
             amount: $this->paisa(Arr::get($transaction, 'transactionAmount')),
             transactionReference: $transaction['invoiceNo2C2P'] ?? $transaction['pspReferenceNo'] ?? null,
-            failureReason: 'hbl_'.match ($status) {
-                'C' => 'cancelled',
-                'E' => 'expired',
-                'V' => 'voided',
-                default => 'rejected',
-            },
+            failureReason: 'hbl_'.(self::FAILURES[$status] ?? 'rejected'),
             response: $transaction,
         );
     }
@@ -168,8 +175,9 @@ class HblGateway implements PaymentGateway
         return match ($status) {
             'A', 'S' => PaymentStatus::Completed, // approved, settled
             'R' => PaymentStatus::Refunded,
-            'F', 'C', 'E', 'V' => PaymentStatus::Failed, // rejected, cancelled, expired, voided
-            default => PaymentStatus::Pending, // PCPS (on the card page), I (processing), P
+            default => isset(self::FAILURES[$status])
+                ? PaymentStatus::Failed
+                : PaymentStatus::Pending, // PCPS (on the card page), I (processing), P
         };
     }
 
@@ -197,7 +205,7 @@ class HblGateway implements PaymentGateway
             'exp' => $now->copy()->addHour()->getTimestamp(),
         ]);
 
-        $body = Http::baseUrl($this->config['urls'][$this->config['sandbox'] ? 'sandbox' : 'production'])
+        $body = Http::baseUrl($this->urls())
             ->withHeaders([
                 'apiKey' => $this->config['api_key'],
                 'CompanyApiKey' => $this->config['api_key'],
@@ -210,24 +218,26 @@ class HblGateway implements PaymentGateway
 
         // Some errors (a wrong API key, for example) come back as plain JSON.
         if (is_array($error = json_decode($body, true))) {
-            throw new GatewayException(sprintf(
-                'HBL returned %s: %s',
-                Arr::get($error, 'apiResponse.responseCode', 'no code'),
-                Arr::get($error, 'apiResponse.responseDescription', 'no description'),
-            ));
+            throw $this->error($error);
         }
 
         $response = $this->unwrap($this->envelope()->open($body));
 
         if (Arr::get($response, 'apiResponse.responseCode') !== self::SUCCESS) {
-            throw new GatewayException(sprintf(
-                'HBL returned %s: %s',
-                Arr::get($response, 'apiResponse.responseCode', 'no code'),
-                Arr::get($response, 'apiResponse.responseDescription', 'no description'),
-            ));
+            throw $this->error($response);
         }
 
         return $response;
+    }
+
+    /** @param  array<string, mixed>  $response */
+    private function error(array $response): GatewayException
+    {
+        return new GatewayException(sprintf(
+            'HBL returned %s: %s',
+            Arr::get($response, 'apiResponse.responseCode', 'no code'),
+            Arr::get($response, 'apiResponse.responseDescription', 'no description'),
+        ));
     }
 
     /**
@@ -315,7 +325,7 @@ class HblGateway implements PaymentGateway
 
     private function envelope(): JoseEnvelope
     {
-        foreach (['office_id', 'api_key', 'merchant_signing_private_key', 'merchant_decryption_private_key', 'paco_encryption_public_key', 'paco_signing_public_key'] as $key) {
+        foreach (self::REQUIRED_CONFIG as $key) {
             if (blank($this->config[$key] ?? null)) {
                 throw new GatewayException("HBL is not configured: set payments.gateways.hbl.{$key}.");
             }

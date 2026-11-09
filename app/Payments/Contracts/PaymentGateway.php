@@ -23,7 +23,7 @@ interface PaymentGateway
     public function handleCallback(Payment $payment, Request $request): GatewayResult;
 
     /**
-     * Ask the gateway directly for the current state of a payment.
+     * Ask the gateway's API for the real status and amount of a payment (a lookup).
      */
-    public function fetchStatus(Payment $payment): GatewayResult;
+    public function lookup(Payment $payment): GatewayResult;
 }

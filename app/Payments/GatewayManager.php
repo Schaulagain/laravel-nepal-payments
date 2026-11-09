@@ -31,10 +31,7 @@ class GatewayManager
     private const REQUIRED = [
         'esewa' => ['product_code', 'secret_key'],
         'khalti' => ['secret_key'],
-        'hbl' => [
-            'office_id', 'api_key', 'merchant_signing_private_key', 'merchant_decryption_private_key',
-            'paco_encryption_public_key', 'paco_signing_public_key',
-        ],
+        'hbl' => HblGateway::REQUIRED_CONFIG,
     ];
 
     public function __construct(private Container $container) {}
@@ -44,6 +41,19 @@ class GatewayManager
         $driver = self::DRIVERS[$name] ?? throw new InvalidArgumentException("Unknown payment gateway [{$name}].");
 
         return $this->container->make($driver, ['config' => config("payments.gateways.{$name}")]);
+    }
+
+    /** HBL by its own type, for the backend notification it alone sends. */
+    public function hbl(): HblGateway
+    {
+        /** @var HblGateway */
+        return $this->gateway('hbl');
+    }
+
+    /** The name customers see for a gateway, e.g. "eSewa". */
+    public function label(string $name): string
+    {
+        return (string) config("payments.gateways.{$name}.label");
     }
 
     public function isConfigured(string $name): bool
@@ -73,7 +83,7 @@ class GatewayManager
     {
         return collect(self::DRIVERS)
             ->keys()
-            ->mapWithKeys(fn (string $name): array => [$name => config("payments.gateways.{$name}.label")])
+            ->mapWithKeys(fn (string $name): array => [$name => $this->label($name)])
             ->all();
     }
 }

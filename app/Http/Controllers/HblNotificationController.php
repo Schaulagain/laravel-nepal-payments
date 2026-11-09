@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\Payments\GatewayException;
-use App\Exceptions\Payments\InvalidSignatureException;
+use App\Exceptions\Payments\PaymentException;
 use App\Models\Payment;
 use App\Payments\GatewayManager;
-use App\Payments\Gateways\HblGateway;
 use App\Payments\PaymentProcessor;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -22,12 +20,11 @@ class HblNotificationController extends Controller
 {
     public function __invoke(Request $request, GatewayManager $gateways, PaymentProcessor $processor): Response
     {
-        /** @var HblGateway $hbl */
-        $hbl = $gateways->gateway('hbl');
+        $hbl = $gateways->hbl();
 
         try {
             $orderNo = $hbl->notificationOrderNo($request->getContent());
-        } catch (InvalidSignatureException|GatewayException $exception) {
+        } catch (PaymentException $exception) {
             Log::warning('Rejected HBL notification', ['reason' => $exception->getMessage()]);
 
             return response('', 400);
@@ -44,8 +41,8 @@ class HblNotificationController extends Controller
         // The notification only tells us which payment changed; the result
         // itself comes from a lookup, like every other HBL result.
         try {
-            $processor->apply($payment, $hbl->fetchStatus($payment));
-        } catch (ConnectionException|RequestException|GatewayException|InvalidSignatureException $exception) {
+            $processor->apply($payment, $hbl->lookup($payment));
+        } catch (ConnectionException|RequestException|PaymentException $exception) {
             Log::error('HBL notification could not be confirmed', ['payment' => $payment->uuid, 'error' => $exception->getMessage()]);
 
             return response('', 503);

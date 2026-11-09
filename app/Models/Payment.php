@@ -25,7 +25,7 @@ class Payment extends Model
     use HasFactory;
 
     protected $attributes = [
-        'status' => 'pending',
+        'status' => PaymentStatus::Pending->value,
     ];
 
     protected static function booted(): void

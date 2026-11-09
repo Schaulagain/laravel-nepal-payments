@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Payments\CheckoutRedirect;
 use App\Payments\Contracts\PaymentGateway;
 use App\Payments\GatewayResult;
+use App\Payments\Gateways\Concerns\PicksEnvironmentUrls;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\Http;
  */
 class EsewaGateway implements PaymentGateway
 {
+    use PicksEnvironmentUrls;
+
     /**
      * Fields eSewa must have signed for a callback to be trusted.
      */
@@ -56,7 +59,7 @@ class EsewaGateway implements PaymentGateway
     public function handleCallback(Payment $payment, Request $request): GatewayResult
     {
         if (! $request->filled('data')) {
-            return $this->fetchStatus($payment);
+            return $this->lookup($payment);
         }
 
         $payload = $this->decodeCallback((string) $request->query('data'));
@@ -74,7 +77,7 @@ class EsewaGateway implements PaymentGateway
         );
     }
 
-    public function fetchStatus(Payment $payment): GatewayResult
+    public function lookup(Payment $payment): GatewayResult
     {
         $response = Http::acceptJson()
             ->get($this->url('status'), [
@@ -170,6 +173,6 @@ class EsewaGateway implements PaymentGateway
 
     private function url(string $type): string
     {
-        return $this->config['urls'][$this->config['sandbox'] ? 'sandbox' : 'production'][$type];
+        return $this->urls()[$type];
     }
 }

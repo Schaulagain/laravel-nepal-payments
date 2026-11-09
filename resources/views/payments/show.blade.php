@@ -1,13 +1,15 @@
 @extends('layouts.app', ['title' => 'Payment'])
 
 @php
-    $status = $payment->status->value;
+    $status = $payment->status;
+    $pending = $status === \App\Enums\PaymentStatus::Pending;
+    $failed = $status === \App\Enums\PaymentStatus::Failed;
     $look = [
         'completed' => ['check', 'bg-emerald-100 text-emerald-700', 'Payment received', 'Thanks! Your order is paid and the invoice is ready.'],
         'pending' => ['clock', 'bg-amber-100 text-amber-700', 'Waiting for confirmation', "We haven't heard back from the gateway yet. This page refreshes by itself."],
         'refunded' => ['undo', 'bg-sky-100 text-sky-700', 'Payment refunded', 'This payment was refunded by the gateway.'],
         'failed' => ['x', 'bg-red-100 text-red-700', 'Payment not completed', 'No money was taken for this order. You can try again.'],
-    ][$status];
+    ][$status->value];
     $reasons = [
         'amount_mismatch' => "The amount the gateway reported doesn't match the order.",
         'checkout_error' => "We couldn't reach the gateway to start the payment.",
@@ -19,7 +21,7 @@
     ];
 @endphp
 
-@if ($status === 'pending')
+@if ($pending)
     @push('head')
         <meta http-equiv="refresh" content="5">
     @endpush
@@ -30,7 +32,7 @@
         <div class="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xs">
             <div class="px-6 pt-8 pb-6 text-center sm:px-8">
                 <span class="mx-auto flex size-14 items-center justify-center rounded-full {{ $look[1] }}">
-                    <x-icon :name="$look[0]" @class(['size-7', 'animate-pulse' => $status === 'pending']) />
+                    <x-icon :name="$look[0]" @class(['size-7', 'animate-pulse' => $pending]) />
                 </span>
                 <h1 class="mt-5 text-2xl font-semibold tracking-tight">{{ $look[2] }}</h1>
                 <p class="mt-2 text-sm text-stone-500">{{ $look[3] }}</p>
@@ -41,10 +43,10 @@
                 @foreach (array_filter([
                     'Order' => $payment->order->number,
                     'Product' => $payment->order->product->name,
-                    'Method' => config("payments.gateways.{$payment->gateway}.label"),
+                    'Method' => app(\App\Payments\GatewayManager::class)->label($payment->gateway),
                     'Reference' => $payment->transaction_reference,
                     'Date' => ($payment->completed_at ?? $payment->created_at)->format('j M Y, g:i a'),
-                    'Reason' => $status === 'failed' ? ($reasons[$payment->failure_reason] ?? str_replace('_', ' ', (string) $payment->failure_reason)) : null,
+                    'Reason' => $failed ? ($reasons[$payment->failure_reason] ?? str_replace('_', ' ', (string) $payment->failure_reason)) : null,
                 ]) as $label => $value)
                     <div class="flex justify-between gap-6 px-6 py-3 sm:px-8">
                         <dt class="text-stone-500">{{ $label }}</dt>
@@ -64,7 +66,7 @@
                         <x-icon name="receipt" class="size-4" />
                         View invoice
                     </a>
-                @elseif ($status === 'failed')
+                @elseif ($failed)
                     <a href="{{ route('checkout.create', $payment->order->product) }}" class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-600">
                         <x-icon name="refresh" class="size-4" />
                         Try again

@@ -2,8 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Exceptions\Payments\GatewayException;
-use App\Exceptions\Payments\InvalidSignatureException;
+use App\Exceptions\Payments\PaymentException;
 use App\Models\Payment;
 use App\Payments\GatewayManager;
 use App\Payments\PaymentProcessor;
@@ -28,10 +27,10 @@ class ReconcilePayments extends Command
 
         foreach ($payments as $payment) {
             try {
-                $result = $gateways->gateway($payment->gateway)->fetchStatus($payment);
+                $result = $gateways->gateway($payment->gateway)->lookup($payment);
                 $payment = $processor->apply($payment, $result);
                 $this->line("{$payment->uuid} ({$payment->gateway}): {$payment->status->value}");
-            } catch (ConnectionException|RequestException|GatewayException|InvalidSignatureException $exception) {
+            } catch (ConnectionException|RequestException|PaymentException $exception) {
                 $this->warn("{$payment->uuid} ({$payment->gateway}): gateway error, will retry. {$exception->getMessage()}");
             }
         }

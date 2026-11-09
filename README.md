@@ -62,7 +62,7 @@ The usual PHP library for this, `web-token/jwt-library`, does RSA maths in plain
 
 | Path | |
 | --- | --- |
-| `app/Payments/Contracts/PaymentGateway.php` | Interface for gateways: `checkout`, `handleCallback`, `fetchStatus` |
+| `app/Payments/Contracts/PaymentGateway.php` | Interface for gateways: `checkout`, `handleCallback`, `lookup` |
 | `app/Payments/Gateways/EsewaGateway.php` | eSewa ePay v2: signing, callback check, status API |
 | `app/Payments/Gateways/KhaltiGateway.php` | Khalti: initiate, lookup, status mapping |
 | `app/Payments/Gateways/HblGateway.php` | HBL cards: payment page, lookup, backend notification |
