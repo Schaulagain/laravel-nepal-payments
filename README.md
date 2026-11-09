@@ -105,3 +105,7 @@ php artisan payments:reconcile
 - Login and an admin page for payments
 - Refunds through the gateway APIs
 - Webhooks
+
+## How this was built
+
+I'm being upfront about this: the code and docs here were written mostly by AI coding agents, mainly **Claude** (Anthropic's model, in Claude Code). I came up with the idea, made the design decisions, tested it and gave feedback, and the agents did most of the writing.
