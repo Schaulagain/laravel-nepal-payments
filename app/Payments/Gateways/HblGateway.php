@@ -172,12 +172,14 @@ class HblGateway implements PaymentGateway
      */
     private function mapStatus(?string $status): PaymentStatus
     {
+        if (isset(self::FAILURES[$status])) {
+            return PaymentStatus::Failed;
+        }
+
         return match ($status) {
             'A', 'S' => PaymentStatus::Completed, // approved, settled
             'R' => PaymentStatus::Refunded,
-            default => isset(self::FAILURES[$status])
-                ? PaymentStatus::Failed
-                : PaymentStatus::Pending, // PCPS (on the card page), I (processing), P
+            default => PaymentStatus::Pending, // PCPS (on the card page), I (processing), P
         };
     }
 

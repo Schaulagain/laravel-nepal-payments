@@ -22,6 +22,9 @@ class EsewaGateway implements PaymentGateway
 {
     use PicksEnvironmentUrls;
 
+    /** Config keys eSewa needs before it can take payments. */
+    public const REQUIRED_CONFIG = ['product_code', 'secret_key'];
+
     /**
      * Fields eSewa must have signed for a callback to be trusted.
      */

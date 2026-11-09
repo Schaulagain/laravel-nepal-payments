@@ -29,8 +29,8 @@ class GatewayManager
      * @var array<string, list<string>>
      */
     private const REQUIRED = [
-        'esewa' => ['product_code', 'secret_key'],
-        'khalti' => ['secret_key'],
+        'esewa' => EsewaGateway::REQUIRED_CONFIG,
+        'khalti' => KhaltiGateway::REQUIRED_CONFIG,
         'hbl' => HblGateway::REQUIRED_CONFIG,
     ];
 

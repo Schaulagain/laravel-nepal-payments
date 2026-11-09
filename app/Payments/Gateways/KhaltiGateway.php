@@ -24,6 +24,9 @@ class KhaltiGateway implements PaymentGateway
 {
     use PicksEnvironmentUrls;
 
+    /** Config keys Khalti needs before it can take payments. */
+    public const REQUIRED_CONFIG = ['secret_key'];
+
     /**
      * @param  array{sandbox: bool, secret_key: ?string, urls: array{sandbox: string, production: string}}  $config
      */
