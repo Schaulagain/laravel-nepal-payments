@@ -99,7 +99,7 @@ class HblPaymentTest extends TestCase
         $this->assertSame(PaymentStatus::Failed, Payment::sole()->status);
     }
 
-    public function test_return_from_hbl_completes_the_payment_from_the_inquiry_api(): void
+    public function test_return_from_hbl_completes_the_payment_from_a_lookup(): void
     {
         $payment = $this->hblPayment();
         // Older API versions answer with a capitalised "Data" key.
@@ -198,6 +198,21 @@ class HblPaymentTest extends TestCase
             'apiResponse' => ['responseCode' => 'PC-B050000'],
             'data' => [$this->transaction($payment, 'A')],
         ], audience: 'someone-elses-api-key')]);
+
+        $this->get(route('payments.callback', $payment))->assertSessionHas('error');
+
+        $this->assertSame(PaymentStatus::Pending, $payment->refresh()->status);
+    }
+
+    public function test_response_without_an_expiry_time_is_rejected(): void
+    {
+        $payment = $this->hblPayment();
+        $claims = $this->claims([
+            'apiResponse' => ['responseCode' => 'PC-B050000'],
+            'data' => [$this->transaction($payment, 'A')],
+        ]);
+        unset($claims['exp']);
+        Http::fake(['core.demo-paco.2c2p.com/*' => fn () => Http::response($this->bank()->seal($claims), 200, ['Content-Type' => 'application/jose'])]);
 
         $this->get(route('payments.callback', $payment))->assertSessionHas('error');
 

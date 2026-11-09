@@ -42,7 +42,16 @@ class PaymentProcessor
 
     private function complete(Payment $payment, GatewayResult $result): void
     {
-        if ($result->amount !== null && $result->amount !== $payment->amount) {
+        // Without an amount the gateway hasn't confirmed the full price was paid.
+        // The payment stays pending and the reconcile job asks again later.
+        if ($result->amount === null) {
+            Log::warning('Completed result without an amount', ['payment' => $payment->uuid]);
+            $payment->update(['gateway_response' => $result->response]);
+
+            return;
+        }
+
+        if ($result->amount !== $payment->amount) {
             Log::warning('Payment amount mismatch', [
                 'payment' => $payment->uuid,
                 'expected' => $payment->amount,

@@ -24,7 +24,7 @@ use Throwable;
  *
  * Flow: prePaymentUi returns a hosted card page, the customer pays there, and
  * HBL redirects the browser back and posts a backend notification. Neither is
- * trusted on its own; the result always comes from the transactionList inquiry,
+ * trusted on its own; the result always comes from a transactionList lookup,
  * which also gives the amount to check against the order.
  *
  * @see https://devzone.2c2p.com/docs/payment-result-notification-1
@@ -247,8 +247,8 @@ class HblGateway implements PaymentGateway
             throw new InvalidTokenException('HBL token has the wrong issuer or audience.');
         }
 
-        if (isset($claims['exp']) && $now > $claims['exp'] + $leeway) {
-            throw new InvalidTokenException('HBL token has expired.');
+        if (! isset($claims['exp']) || $now > $claims['exp'] + $leeway) {
+            throw new InvalidTokenException('HBL token has no expiry time or has expired.');
         }
 
         if (isset($claims['nbf']) && $now < $claims['nbf'] - $leeway) {

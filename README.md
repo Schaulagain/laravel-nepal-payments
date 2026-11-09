@@ -35,14 +35,14 @@ eSewa sends the result back as base64 JSON with an HMAC-SHA256 signature. The ap
 
 Khalti's callback isn't signed, so the app ignores everything in it except the `pidx` and asks Khalti's lookup API what really happened. Khalti's docs recommend doing this.
 
-HBL is the most involved. Its card gateway runs on 2C2P's PACO platform, and every message in both directions is a JOSE token: the JSON is signed with PS256 and the result is encrypted with RSA-OAEP and A128CBC-HS256. The app signs with its own private key and encrypts with the bank's public key, and does the reverse for responses. It also checks that a response was issued by `PacoIssuer` for our API key and hasn't expired. The customer is sent to HBL's hosted card page, so card numbers never touch this app.
+HBL is the most involved. Its card gateway runs on 2C2P's PACO platform, and every message in both directions is a JOSE token: the JSON is signed with PS256 and the result is encrypted with RSA-OAEP and A128CBC-HS256. The app signs with its own private key and encrypts with the bank's public key, and does the reverse for responses. It also checks that a response was issued by `PacoIssuer` for our API key, has an expiry time and hasn't expired. The customer is sent to HBL's hosted card page, so card numbers never touch this app.
 
 When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app does a lookup through HBL's `transactionList` inquiry API, which gives both the status and the amount.
 
 Some other checks:
 
 - A callback is tied to one payment. A valid eSewa response for payment A can't be replayed against payment B.
-- If the gateway reports a different amount from the order, the payment is marked failed.
+- If the gateway reports a different amount from the order, the payment is marked failed. If it says the payment went through but leaves the amount out, the payment stays pending until the next reconcile.
 - The payment row is locked (`lockForUpdate`) while a result is applied, a finished payment never changes again, and `invoices.payment_id` is unique. So a page refresh, a retry and the reconcile job can all hit the same payment without creating two invoices.
 - Amounts are stored as integers in paisa and only converted to rupees when talking to a gateway.
 
@@ -65,12 +65,12 @@ The usual PHP library for this, `web-token/jwt-library`, does RSA maths in plain
 | `app/Payments/Contracts/PaymentGateway.php` | Interface for gateways: `checkout`, `handleCallback`, `fetchStatus` |
 | `app/Payments/Gateways/EsewaGateway.php` | eSewa ePay v2: signing, callback check, status API |
 | `app/Payments/Gateways/KhaltiGateway.php` | Khalti: initiate, lookup, status mapping |
-| `app/Payments/Gateways/HblGateway.php` | HBL cards: payment page, inquiry, backend notification |
+| `app/Payments/Gateways/HblGateway.php` | HBL cards: payment page, lookup, backend notification |
 | `app/Payments/Jose/JoseEnvelope.php` | Signs and encrypts HBL's JOSE tokens, and opens them |
 | `app/Payments/PaymentProcessor.php` | Applies a checked result once and creates the invoice |
-| `app/Console/Commands/ReconcilePayments.php` | Re-checks old pending payments |
+| `app/Console/Commands/ReconcilePayments.php` | Reconciles old pending payments |
 | `GLOSSARY.md` | The words this project uses, like *callback*, *lookup* and *reconcile* |
-| `tests/Feature/` | 32 tests. Gateway HTTP calls are faked, and the HBL tests play the bank's side with their own keys |
+| `tests/Feature/` | 34 tests. Gateway HTTP calls are faked, and the HBL tests play the bank's side with their own keys |
 
 To add another gateway, write a class that implements `PaymentGateway` and register it in `GatewayManager`.
 
