@@ -37,7 +37,7 @@ Khalti's callback isn't signed, so the app ignores everything in it except the `
 
 HBL is the most involved. Its card gateway runs on 2C2P's PACO platform, and every message in both directions is a JOSE token: the JSON is signed with PS256 and the result is encrypted with RSA-OAEP and A128CBC-HS256. The app signs with its own private key and encrypts with the bank's public key, and does the reverse for responses. It also checks that a response was issued by `PacoIssuer` for our API key, has an expiry time and hasn't expired. The customer is sent to HBL's hosted card page, so card numbers never touch this app.
 
-When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app does a lookup through HBL's `transactionList` inquiry API, which gives both the status and the amount.
+When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app does a lookup with HBL's `transactionList` API, which gives both the status and the amount.
 
 Some other checks:
 
