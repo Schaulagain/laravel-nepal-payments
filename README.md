@@ -105,7 +105,6 @@ php artisan payments:reconcile
 
 - Login and an admin page for payments
 - Refunds through the gateway APIs
-- Webhooks
 
 ## How this was built
 
