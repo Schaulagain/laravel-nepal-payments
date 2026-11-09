@@ -37,7 +37,7 @@ Khalti's callback isn't signed, so the app ignores everything in it except the `
 
 HBL is the most involved. Its card gateway runs on 2C2P's PACO platform, and every message in both directions is a JOSE token: the JSON is signed with PS256 and the result is encrypted with RSA-OAEP and A128CBC-HS256. The app signs with its own private key and encrypts with the bank's public key, and does the reverse for responses. It also checks that a response was issued by `PacoIssuer` for our API key and hasn't expired. The customer is sent to HBL's hosted card page, so card numbers never touch this app.
 
-When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app asks HBL's `transactionList` inquiry API for the order, which gives both the status and the amount.
+When the customer comes back, or HBL's server posts its backend notification to `/payments/hbl/notify`, the app does a lookup through HBL's `transactionList` inquiry API, which gives both the status and the amount.
 
 Some other checks:
 
@@ -56,7 +56,7 @@ A few third-party eSewa packages quote a signature for that same example that di
 
 ### JOSE without a JOSE library
 
-The usual PHP library for this, `web-token/jwt-library`, does RSA maths in plain PHP when the GMP extension is missing, and one signature can take minutes. `app/Payments/Jose/JoseEnvelope.php` does the same job with PHP's built-in OpenSSL functions instead. RSA-OAEP and AES-CBC are built into OpenSSL. For PS256, the PSS padding is a few lines of PHP around OpenSSL's raw RSA operation. Its output was checked against the Node `jose` package in both directions, with 2048 and 4096-bit keys.
+The usual PHP library for this, `web-token/jwt-library`, does RSA maths in plain PHP when the GMP extension is missing, and one signature can take minutes. `app/Payments/Jose/JoseEnvelope.php` does the same job with PHP's built-in OpenSSL functions, which are fast. RSA-OAEP and AES-CBC are built into OpenSSL. For PS256, the PSS padding is a few lines of PHP around OpenSSL's raw RSA operation. Its output was checked against the Node `jose` package in both directions, with 2048 and 4096-bit keys.
 
 ## Where things are
 
@@ -69,6 +69,7 @@ The usual PHP library for this, `web-token/jwt-library`, does RSA maths in plain
 | `app/Payments/Jose/JoseEnvelope.php` | Signs and encrypts HBL's JOSE tokens, and opens them |
 | `app/Payments/PaymentProcessor.php` | Applies a checked result once and creates the invoice |
 | `app/Console/Commands/ReconcilePayments.php` | Re-checks old pending payments |
+| `GLOSSARY.md` | The words this project uses, like *callback*, *lookup* and *reconcile* |
 | `tests/Feature/` | 32 tests. Gateway HTTP calls are faked, and the HBL tests play the bank's side with their own keys |
 
 To add another gateway, write a class that implements `PaymentGateway` and register it in `GatewayManager`.
@@ -91,7 +92,7 @@ eSewa works straight away with its public sandbox keys. The test login details a
 
 Khalti needs a free sandbox merchant account from [test-admin.khalti.com](https://test-admin.khalti.com). Put the secret key in `KHALTI_SECRET_KEY`. Test accounts are listed in the [Khalti docs](https://docs.khalti.com/khalti-epayment/).
 
-HBL has no public sandbox. You get the office ID, API key, key ID and the bank's two public keys when you sign up as a merchant. You also make two RSA key pairs of your own (one for signing, one for encryption) and send HBL the public halves. All of these go in the `HBL_*` variables in `.env`. The backend notification URL (`/payments/hbl/notify`) has to be registered with the bank. Because I don't have merchant credentials, the HBL code is tested against HBL's published request format and 2C2P's API reference rather than a live payment.
+HBL has no public sandbox. You get the office ID, API key, key ID and the bank's two public keys when you sign up as a merchant. You also make two RSA key pairs of your own (one for signing, one for encryption) and send HBL the public halves. All of these go in the `HBL_*` variables in `.env`. The backend notification URL (`/payments/hbl/notify`) has to be registered with the bank. Because I don't have merchant credentials, the HBL code is tested against HBL's published request format and 2C2P's API reference. It hasn't been tried with a live payment yet.
 
 The gateways redirect back to `APP_URL`, so set `APP_URL=http://localhost:8000` when running locally.
 
