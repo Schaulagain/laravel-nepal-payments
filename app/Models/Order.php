@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A customer's purchase. An order can have several payment attempts
+ * What a customer is buying. An order can have several payment attempts
  * (for example a cancelled eSewa payment followed by a Khalti one).
  */
 #[Fillable(['product_id', 'customer_name', 'customer_email', 'amount', 'paid_at'])]

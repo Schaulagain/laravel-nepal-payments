@@ -42,7 +42,7 @@ class HblNotificationController extends Controller
         }
 
         // The notification only tells us which payment changed; the result
-        // itself comes from the inquiry API, like every other HBL check.
+        // itself comes from a lookup, like every other HBL result.
         try {
             $processor->apply($payment, $hbl->fetchStatus($payment));
         } catch (ConnectionException|RequestException|GatewayException|InvalidSignatureException $exception) {

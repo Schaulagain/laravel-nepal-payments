@@ -14,7 +14,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 
 #[Signature('payments:reconcile {--minutes= : Only check payments pending for at least this many minutes}')]
-#[Description('Re-check pending payments with their gateway (covers customers who never returned from the gateway)')]
+#[Description('Reconcile pending payments with their gateway, for customers who never came back from it')]
 class ReconcilePayments extends Command
 {
     public function handle(GatewayManager $gateways, PaymentProcessor $processor): int

@@ -48,7 +48,7 @@ class EsewaPaymentTest extends TestCase
         $this->assertSame(PaymentStatus::Pending, $payment->status);
     }
 
-    public function test_successful_callback_completes_the_payment_and_issues_an_invoice(): void
+    public function test_a_signed_complete_callback_completes_the_payment_and_issues_an_invoice(): void
     {
         $payment = Payment::factory()->esewa()->create(['amount' => 150000]);
 
@@ -123,7 +123,7 @@ class EsewaPaymentTest extends TestCase
         $this->assertSame(1, $payment->invoice()->count());
     }
 
-    public function test_return_without_data_is_confirmed_with_the_status_api(): void
+    public function test_return_without_data_is_confirmed_with_a_lookup(): void
     {
         Http::fake([
             'rc.esewa.com.np/*' => Http::response(['status' => 'CANCELED', 'total_amount' => 1500.0, 'ref_id' => null]),

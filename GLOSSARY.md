@@ -44,11 +44,14 @@ _Avoid_: inquiry, status check, verify call
 The payment was started and the gateway hasn't confirmed an outcome yet.
 
 **Completed**:
-The gateway confirmed the full amount was paid. A completed payment never changes again.
-_Avoid_: paid, success
+The gateway confirmed the full amount was paid. A completed payment never changes again. Once an order has a completed payment, the order is *paid*.
+_Avoid_: success, and "paid" for a payment
 
 **Failed**:
 The gateway said no, the customer cancelled, or the amount didn't match.
+
+**Refunded**:
+The gateway reports that a pending payment's money was given back in full. A completed payment can't become refunded here, because refunds through the gateways aren't built yet.
 
 **Reconcile**:
 Running a lookup on payments that have stayed pending too long, usually because the customer closed the tab before the callback.
